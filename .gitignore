@@ -1,0 +1,10 @@
+**/build/
+build/
+**/~.dev/
+~.dev/
+**/bin/
+bin/
+**/vcpkg_installed/
+vcpkg_installed/
+*.zip
+*.log
