@@ -62,15 +62,15 @@ if(MSVC)
     )
 endif()
 
-set(_DISCORD_RPC_BASE "${CMAKE_SOURCE_DIR}/vcpkg_installed/x86-windows")
+set(VCPKG_BASE "${CMAKE_SOURCE_DIR}/vcpkg_installed/x86-windows")
 
 add_library(discord-rpc::discord-rpc SHARED IMPORTED)
 set_target_properties(discord-rpc::discord-rpc PROPERTIES
-    IMPORTED_LOCATION         "${_DISCORD_RPC_BASE}/bin/discord-rpc.dll"
-    IMPORTED_IMPLIB           "${_DISCORD_RPC_BASE}/lib/discord-rpc.lib"
-    IMPORTED_LOCATION_DEBUG   "${_DISCORD_RPC_BASE}/debug/bin/discord-rpc.dll"
-    IMPORTED_IMPLIB_DEBUG     "${_DISCORD_RPC_BASE}/debug/lib/discord-rpc.lib"
-    INTERFACE_INCLUDE_DIRECTORIES "${_DISCORD_RPC_BASE}/include"
+    IMPORTED_LOCATION         "${VCPKG_BASE}/bin/discord-rpc.dll"
+    IMPORTED_IMPLIB           "${VCPKG_BASE}/lib/discord-rpc.lib"
+    IMPORTED_LOCATION_DEBUG   "${VCPKG_BASE}/debug/bin/discord-rpc.dll"
+    IMPORTED_IMPLIB_DEBUG     "${VCPKG_BASE}/debug/lib/discord-rpc.lib"
+    INTERFACE_INCLUDE_DIRECTORIES "${VCPKG_BASE}/include"
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC minhook rakhook sampapi discord-rpc::discord-rpc)

@@ -100,7 +100,7 @@ int GetPlayerCount()
 	{
 		auto* ng = sampapi::v037r1::RefNetGame();
 		if (ng && ng->m_pPools && ng->m_pPools->m_pPlayer)
-			return ng->m_pPools->m_pPlayer->GetCount(/*bIncludeNPC=*/false);
+			return ng->m_pPools->m_pPlayer->GetCount(false);
 		break;
 	}
 	case rakhook::samp_ver::v037r31:
@@ -169,36 +169,70 @@ int GetGameState()
 	return -1;
 }
 
+static bool HasActiveLocalPlayer()
+{
+	rakhook::samp_ver ver = rakhook::samp_version();
+	switch (ver)
+	{
+	case rakhook::samp_ver::v037r1:
+	{
+		auto* ng = sampapi::v037r1::RefNetGame();
+		auto* local = ng && ng->m_pPools && ng->m_pPools->m_pPlayer
+			? ng->m_pPools->m_pPlayer->GetLocalPlayer()
+			: nullptr;
+		return local && local->m_bIsActive;
+	}
+	case rakhook::samp_ver::v037r31:
+	{
+		auto* ng = sampapi::v037r3::RefNetGame();
+		auto* local = ng && ng->m_pPools && ng->m_pPools->m_pPlayer
+			? ng->m_pPools->m_pPlayer->GetLocalPlayer()
+			: nullptr;
+		return local && local->m_bIsActive;
+	}
+	case rakhook::samp_ver::v037r5:
+	{
+		auto* ng = sampapi::v037r5::RefNetGame();
+		auto* local = ng && ng->m_pPools && ng->m_pPools->m_pPlayer
+			? ng->m_pPools->m_pPlayer->GetLocalPlayer()
+			: nullptr;
+		return local && local->m_bIsActive;
+	}
+	case rakhook::samp_ver::v03dlr1:
+	{
+		auto* ng = sampapi::v03dl::RefNetGame();
+		auto* local = ng && ng->m_pPools && ng->m_pPools->m_pPlayer
+			? ng->m_pPools->m_pPlayer->GetLocalPlayer()
+			: nullptr;
+		return local && local->m_bIsActive;
+	}
+	default:
+		return false;
+	}
+}
+
 bool IsDebugMode()
 {
-	if (GetModuleHandleA("samp.dll") != nullptr)
-	{
-		auto* cfg = sampapi::v037r1::RefConfig();
-		if (cfg)
-		{
-			if (cfg->GetIntValue("debug") == 1)
-				return true;
-		}
-	}
-
 	const char* cmdLine = GetCommandLineA();
-	if (cmdLine)
+	if (!cmdLine)
+		return false;
+
+	const char* p = cmdLine;
+	while (*p != '\0')
 	{
-		const char* p = cmdLine;
-		while (*p != '\0')
+		// Skip whitespace between tokens.
+		while (*p == ' ' || *p == '\t')
+			++p;
+
+		// Match "-d" as a standalone token (not "-debug", not "x-d").
+		if (p[0] == '-' && p[1] == 'd' && (p[2] == '\0' || p[2] == ' ' || p[2] == '\t'))
 		{
-			// Skip whitespace
-			while (*p == ' ' || *p == '\t')
-				++p;
-
-			// Check for "-d" followed by whitespace or end-of-string
-			if (p[0] == '-' && p[1] == 'd' && (p[2] == '\0' || p[2] == ' ' || p[2] == '\t'))
-				return true;
-
-			// Advance past current token
-			while (*p != '\0' && *p != ' ' && *p != '\t')
-				++p;
+			return true;
 		}
+
+		// Advance past the current token.
+		while (*p != '\0' && *p != ' ' && *p != '\t')
+			++p;
 	}
 
 	return false;
@@ -211,7 +245,7 @@ PlayerState GetPlayerState(bool localPlayerJoined, bool windowFocused)
 		return PlayerState::Paused;
 
 	// 2. Not yet joined any server.
-	if (!localPlayerJoined)
+	if (!localPlayerJoined && !HasActiveLocalPlayer())
 	{
 		// If NetGame exists we are at least in the handshake / spawn screen.
 		int gs = GetGameState();
@@ -241,7 +275,7 @@ PlayerState GetPlayerState(bool localPlayerJoined, bool windowFocused)
 			return PlayerState::Wasted;
 		if (local->m_bDoesSpectating)
 			return PlayerState::Spectating;
-		if (local->m_nCurrentVehicle != 0xFFFF)
+		if (local->m_pPed && local->m_pPed->GetVehicle())
 			return PlayerState::InVehicle;
 		return PlayerState::OnFoot;
 	}
@@ -262,7 +296,7 @@ PlayerState GetPlayerState(bool localPlayerJoined, bool windowFocused)
 			return PlayerState::Wasted;
 		if (local->m_bDoesSpectating)
 			return PlayerState::Spectating;
-		if (local->m_nCurrentVehicle != 0xFFFF)
+		if (local->m_pPed && local->m_pPed->GetVehicle())
 			return PlayerState::InVehicle;
 		return PlayerState::OnFoot;
 	}
@@ -283,7 +317,7 @@ PlayerState GetPlayerState(bool localPlayerJoined, bool windowFocused)
 			return PlayerState::Wasted;
 		if (local->m_bDoesSpectating)
 			return PlayerState::Spectating;
-		if (local->m_nCurrentVehicle != 0xFFFF)
+		if (local->m_pPed && local->m_pPed->GetVehicle())
 			return PlayerState::InVehicle;
 		return PlayerState::OnFoot;
 	}
@@ -304,7 +338,7 @@ PlayerState GetPlayerState(bool localPlayerJoined, bool windowFocused)
 			return PlayerState::Wasted;
 		if (local->m_bDoesSpectating)
 			return PlayerState::Spectating;
-		if (local->m_nCurrentVehicle != 0xFFFF)
+		if (local->m_pPed && local->m_pPed->GetVehicle())
 			return PlayerState::InVehicle;
 		return PlayerState::OnFoot;
 	}

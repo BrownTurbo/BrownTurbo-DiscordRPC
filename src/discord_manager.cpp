@@ -4,6 +4,7 @@
 
 #include "discord_rpc.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -17,22 +18,17 @@ bool g_initialized = false;
 
 void OnReady(const DiscordUser* user)
 {
-	WriteToLogFile(logsPath, "[Discord] Ready - user: %s#%s (id=%s)",
-		user->username ? user->username : "?",
-		user->discriminator ? user->discriminator : "?",
-		user->userId ? user->userId : "?");
+	WriteToLogFile(logsPath, "[Discord] Ready - user: %s#%s (id=%s)", user->username ? user->username : "?", user->discriminator ? user->discriminator : "?", user->userId ? user->userId : "?");
 }
 
 void OnDisconnected(int errorCode, const char* message)
 {
-	WriteToLogFile(logsPath, "[Discord] Disconnected (code=%d): %s",
-		errorCode, message ? message : "");
+	WriteToLogFile(logsPath, "[Discord] Disconnected (code=%d): %s", errorCode, message ? message : "");
 }
 
 void OnErrored(int errorCode, const char* message)
 {
-	WriteToLogFile(logsPath, "[Discord] Error (code=%d): %s",
-		errorCode, message ? message : "");
+	WriteToLogFile(logsPath, "[Discord] Error (code=%d): %s", errorCode, message ? message : "");
 }
 }
 
@@ -65,6 +61,7 @@ void Shutdown()
 	if (!g_initialized)
 		return;
 
+	Discord_ClearPresence();
 	Discord_Shutdown();
 	g_initialized = false;
 
@@ -83,7 +80,6 @@ void Update(
 	if (!g_initialized)
 		return;
 
-	// ---- details line (bold, max 128 bytes per SDK) -----------------------
 	char details[128];
 	memset(details, 0, sizeof(details));
 
@@ -102,14 +98,16 @@ void Update(
 
 	// ---- party size (online / max) ----------------------------------------
 	int partySize = 0, partyMax = 0;
-	if (playerState != PlayerState::NotConnected && playerState != PlayerState::Connecting && playerCount > 0)
+	std::string partyId;
+	if (playerState != PlayerState::NotConnected && playerCount >= 0 && !serverAddress.empty())
 	{
 		partySize = playerCount;
-		partyMax = (maxPlayers > 0) ? maxPlayers : playerCount;
+		partyMax = (std::max)(maxPlayers, (std::max)(partySize, 1));
+		partyId = serverAddress.substr(0, 128);
 	}
 
 	// ---- image keys -------------------------------------------------------
-	const char* largeImageKey = "samp_logo"; // upload in Dev Portal
+	const char* largeImageKey = "samp_logo";
 	const char* largeImageText = "SA-MP / open.mp";
 	const char* smallImageKey = nullptr;
 	const char* smallImageText = nullptr;
@@ -148,7 +146,6 @@ void Update(
 		break;
 	}
 
-	// ---- build presence struct (memset like the official example) ---------
 	DiscordRichPresence presence;
 	memset(&presence, 0, sizeof(presence));
 
@@ -159,6 +156,7 @@ void Update(
 	presence.largeImageText = largeImageText;
 	presence.smallImageKey = smallImageKey;
 	presence.smallImageText = smallImageText;
+	presence.partyId = partyId.empty() ? nullptr : partyId.c_str();
 	presence.partySize = partySize;
 	presence.partyMax = partyMax;
 	presence.instance = 0;

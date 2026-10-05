@@ -24,7 +24,7 @@ void InitializeHooks();
 extern char logsPath[300];
 extern FILE* g_fLog;
 
-extern bool localPlayerJoined;
-extern bool windowFocused;
-extern int g_maxPlayers;
-extern int64_t g_sessionStart;
+extern std::atomic<bool> localPlayerJoined;
+extern std::atomic<bool> windowFocused;
+extern std::atomic<int> g_maxPlayers;
+extern std::atomic<int64_t> g_sessionStart;

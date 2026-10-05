@@ -20,11 +20,10 @@
 namespace fs = std::filesystem;
 
 bool ASIinitialized = false;
-bool pluginReady = false;
-bool localPlayerJoined = false;
-bool windowFocused = true; // assume focused until a WM_KILLFOCUS
-int g_maxPlayers = -1; // filled from InitGame RPC (id=139)
-int64_t g_sessionStart = 0; // set on join, cleared on disconnect
+std::atomic<bool> localPlayerJoined { false };
+std::atomic<bool> windowFocused { true }; // assume focused until a WM_KILLFOCUS
+std::atomic<int> g_maxPlayers { -1 };
+std::atomic<int64_t> g_sessionStart { 0 };
 
 std::atomic<bool> shuttingDown { false };
 
@@ -55,8 +54,6 @@ void WriteToLogFile(const char* path, const char* fmt, ...)
 	fprintf(g_fLog, "\n");
 	fflush(g_fLog);
 }
-
-static bool CreateLogsFolderIfMissing() { return true; }
 
 const char* GetLocalPlayerName()
 {
@@ -225,7 +222,7 @@ static void DiscordPollingThread()
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 	}
 
-	constexpr auto INTERVAL = std::chrono::seconds(5);
+	constexpr auto INTERVAL = std::chrono::milliseconds(700);
 
 	PlayerState lastState = PlayerState::NotConnected;
 	bool wasDebug = false;
@@ -257,11 +254,16 @@ static void DiscordPollingThread()
 		std::string serverName = SampInfo::GetServerName();
 		std::string serverAddress = SampInfo::GetServerAddress();
 		int playerCount = SampInfo::GetPlayerCount();
-		int maxPlayers = (g_maxPlayers > 0) ? g_maxPlayers : -1;
-		PlayerState playerState = SampInfo::GetPlayerState(localPlayerJoined, windowFocused);
-		int64_t sessionStart = (playerState != PlayerState::NotConnected && playerState != PlayerState::Connecting)
-			? g_sessionStart
-			: 0;
+		int maxPlayers = g_maxPlayers.load();
+		PlayerState playerState = SampInfo::GetPlayerState(localPlayerJoined.load(), windowFocused.load());
+		const bool inGame = playerState == PlayerState::OnFoot || playerState == PlayerState::InVehicle || playerState == PlayerState::Spectating || playerState == PlayerState::Wasted || playerState == PlayerState::InMenu;
+		if (inGame && g_sessionStart.load() == 0)
+		{
+			const int64_t now = static_cast<int64_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+			int64_t noSessionStart = 0;
+			g_sessionStart.compare_exchange_strong(noSessionStart, now);
+		}
+		const int64_t sessionStart = g_sessionStart.load();
 
 		DiscordManager::Update(serverName, serverAddress, playerState, playerCount, maxPlayers, sessionStart);
 
@@ -359,28 +361,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
 	{
 		DisableThreadLibraryCalls(hModule);
 
-		if (CreateLogsFolderIfMissing())
-		{
-			snprintf(logsPath, sizeof(logsPath), "brownturbo-discordrpc.log");
-			WriteToLogFile(logsPath, "DiscordRPC - initialized");
-			pluginReady = true;
-		}
-		else
-		{
-			pluginReady = false;
-		}
+		snprintf(logsPath, sizeof(logsPath), "brownturbo-discordrpc.log");
+		WriteToLogFile(logsPath, "DiscordRPC - initialized");
 
-		if (pluginReady)
-		{
-			DiscordManager::Init();
+		DiscordManager::Init();
 
-			static bool threadsSpawned = false;
-			if (!threadsSpawned)
-			{
-				threadsSpawned = true;
-				std::thread(InitializeHooks).detach();
-				std::thread(DiscordPollingThread).detach();
-			}
+		static bool threadsSpawned = false;
+		if (!threadsSpawned)
+		{
+			threadsSpawned = true;
+			std::thread(InitializeHooks).detach();
+			std::thread(DiscordPollingThread).detach();
 		}
 		break;
 	}

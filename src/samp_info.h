@@ -3,7 +3,6 @@
 #include "main.h"
 #include "player_state.h"
 
-#include <sampapi/CConfig.h>
 #include <sampapi/CGame.h>
 #include <sampapi/CLocalPlayer.h>
 #include <sampapi/CNetGame.h>
